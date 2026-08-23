@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Mushroom VR HUD</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <style>
+      body { margin: 0; overflow: hidden; background: black; }
+      #video { width: 100vw; height: 100vh; object-fit: cover; transform: scaleX(-1); }
+      #result {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 4rem; /* Огромный шрифт для линз очков */
+        font-weight: bold;
+        text-align: center;
+        text-shadow: 2px 2px 0 #000;
+        background: rgba(0,0,0,0.5);
+        padding: 20px;
+        border-radius: 15px;
+      }
+      #status {
+        margin-top: 20px;
+        font-size: 2rem;
+        color: #ffaa00;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="video" autoplay muted playsinline></video>
+    <div id="result">
+      <span id="label">Ожидание камеры...</span>
+      <div id="status"></div>
+    </div>
+
+    <!-- Подключаем TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+    
+    <script>
+      const video = document.getElementById('video');
+      const label = document.getElementById('label');
+      const status = document.getElementById('status');
+
+      // 1. Включаем камеру
+      async function setupCamera() {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 224, height: 224 }, // Размер для нейросети
+          audio: false
+        });
+        video.srcObject = stream;
+      }
+
+      // 2. Загружаем модель MobileNet (распознает 1000 классов, среди них и грибы)
+      let model;
+      async function loadModel() {
+        status.innerText = "Загрузка нейросети...";
+        model = await mobilenet.load();
+        status.innerText = "Готово! Наведи на гриб.";
+      }
+
+      // 3. Распознавание в реальном времени
+      async function predict() {
+        if (!model) return;
+        const predictions = await model.classify(video);
+        const result = predictions;
+        
+        // Простая логика для грибов (MobileNet знает "mushroom")
+        if (result.className.toLowerCase().includes('mushroom')) {
+          label.innerText = "ГРИБ!";
+          label.style.color = "#0f0";
+          status.innerText = `Уверенность: \${(result.probability * 100).toFixed(1)}%`;
+        } else {
+          label.innerText = result.className;
+          label.style.color = "white";
+          status.innerText = "";
+        }
+        
+        requestAnimationFrame(predict);
+      }
+
+      // Запуск
+      setupCamera();
+      loadModel();
+      video.addEventListener('loadeddata', predict);
+    </script>
+  </body>
+</html>
