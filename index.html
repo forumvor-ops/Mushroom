@@ -43,10 +43,6 @@
       const status = document.getElementById('status');
 
       // 1. Включаем камеру
-     <video id="video" autoplay playsinline></video>
-<script>
-  const video = document.getElementById('video');
-
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -60,40 +56,65 @@
   }
 
   startCamera();
+<script>
+  const label = document.getElementById('label');
+  const status = document.getElementById('status');
+  const video = document.getElementById('video');
+
+  // 1. Включаем камеру
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+      });
+      video.srcObject = stream;
+      status.innerText = "Камера готова. Наведи на гриб.";
+    } catch (error) {
+      console.error('Ошибка доступа к камере:', error);
+      // Для iOS важно показать пользователю, что пошло не так
+      if (error.name === 'NotAllowedError') {
+        status.innerText = "Нужно разрешить доступ к камере в настройках Safari.";
+      } else if (error.name === 'OverconstrainedError') {
+        status.innerText = "Задняя камера не найдена или занята.";
+      } else {
+        status.innerText = "Ошибка камеры. Проверьте консоль.";
+      }
+    }
+  }
+
+  // 2. Загружаем модель MobileNet
+  let model;
+  async function loadModel() {
+    status.innerText = "Загрузка нейросети...";
+    model = await mobilenet.load();
+    status.innerText = "Нейросеть готова! Наведи на гриб.";
+  }
+
+  // 3. Распознавание в реальном времени
+  async function predict() {
+    if (!model) return;
+    try {
+      const predictions = await model.classify(video);
+      const result = predictions; // Берем самый вероятный вариант
+
+      // Простая логика для грибов
+      if (result.className.toLowerCase().includes('mushroom')) {
+        label.innerText = "ГРИБ!";
+        label.style.color = "#0f0";
+        status.innerText = `Уверенность: \${(result.probability * 100).toFixed(1)}%`;
+      } else {
+        label.innerText = result.className;
+        label.style.color = "white";
+        status.innerText = "";
+      }
+      requestAnimationFrame(predict);
+    } catch (e) {
+      console.error('Ошибка классификации:', e);
+      requestAnimationFrame(predict);
+    }
+  }
+
+  // ЗАПУСК: вызываем функции ПОСЛЕ их объявления
+  startCamera();
+  loadModel();
 </script>
-
-      // 2. Загружаем модель MobileNet (распознает 1000 классов, среди них и грибы)
-      let model;
-      async function loadModel() {
-        status.innerText = "Загрузка нейросети...";
-        model = await mobilenet.load();
-        status.innerText = "Готово! Наведи на гриб.";
-      }
-
-      // 3. Распознавание в реальном времени
-      async function predict() {
-        if (!model) return;
-        const predictions = await model.classify(video);
-        const result = predictions;
-        
-        // Простая логика для грибов (MobileNet знает "mushroom")
-        if (result.className.toLowerCase().includes('mushroom')) {
-          label.innerText = "ГРИБ!";
-          label.style.color = "#0f0";
-          status.innerText = `Уверенность: \${(result.probability * 100).toFixed(1)}%`;
-        } else {
-          label.innerText = result.className;
-          label.style.color = "white";
-          status.innerText = "";
-        }
-        
-        requestAnimationFrame(predict);
-      }
-
-      // Запуск
-      setupCamera();
-      loadModel();
-      video.addEventListener('loadeddata', predict);
-    </script>
-  </body>
-</html>
