@@ -43,13 +43,24 @@
       const status = document.getElementById('status');
 
       // 1. Включаем камеру
-      async function setupCamera() {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 224, height: 224 }, // Размер для нейросети
-          audio: false
-        });
-        video.srcObject = stream;
-      }
+     <video id="video" autoplay playsinline></video>
+<script>
+  const video = document.getElementById('video');
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+      });
+      video.srcObject = stream;
+    } catch (error) {
+      console.error('Ошибка доступа к камере:', error);
+      alert('Не удалось получить доступ к задней камере. Проверьте разрешения или попробуйте обновить страницу.');
+    }
+  }
+
+  startCamera();
+</script>
 
       // 2. Загружаем модель MobileNet (распознает 1000 классов, среди них и грибы)
       let model;
