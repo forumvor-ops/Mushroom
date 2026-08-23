@@ -82,20 +82,19 @@
             return;
           }
 
-                const result = predictions; // Исправлено: берём первый элемент
+          const result = predictions; // Берём самый вероятный вариант
 
-      // Простая логика для грибов
-      if (result.className.toLowerCase().includes('mushroom')) {
-        label.innerText = "ГРИБ!";
-        label.style.color = "#0f0";
-        status.innerText = `Уверенность: ${(result.probability * 100).toFixed(1)}%`; // Исправлено: убрано экранирование $
-      } else {
-        label.innerText = result.className;
-        label.style.color = "white";
-        status.innerText = "";
-      }
-      requestAnimationFrame(predict);
-
+          // Простая логика для грибов
+          if (result.className.toLowerCase().includes('mushroom')) {
+            label.innerText = "ГРИБ!";
+            label.style.color = "#0f0";
+            status.innerText = `Уверенность: ${(result.probability * 100).toFixed(1)}%`;
+          } else {
+            label.innerText = result.className;
+            label.style.color = "white";
+            status.innerText = "";
+          }
+          
           requestAnimationFrame(predict);
         } catch (e) {
           console.error('Ошибка классификации:', e);
