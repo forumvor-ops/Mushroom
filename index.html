@@ -1,110 +1,125 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>Mushroom VR HUD</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <style>
-      body { margin: 0; overflow: hidden; background: black; }
-      #video { width: 100vw; height: 100vh; object-fit: cover; }
-      #result {
-        position: absolute;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
-        color: white;
-        font-size: 4rem;
-        font-weight: bold;
-        text-align: center;
-        text-shadow: 2px 2px 0 #000;
-        background: rgba(0,0,0,0.5);
-        padding: 20px;
-        border-radius: 15px;
-      }
-      #status {
-        margin-top: 20px;
-        font-size: 2rem;
-        color: #ffaa00;
-      }
-    </style>
-  </head>
-  <body>
-    <video id="video" autoplay muted playsinline></video>
-    <div id="result">
-      <span id="label">Ожидание камеры...</span>
-      <div id="status"></div>
-    </div>
+<head>
+<title>Mushroom VR HUD</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<style>
+body { margin: 0; overflow: hidden; background: black; }
+#video { width: 100vw; height: 100vh; object-fit: cover; }
+#result {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 3rem;
+  font-weight: bold;
+  text-align: center;
+  text-shadow: 2px 2px 0 #000;
+  background: rgba(0,0,0,0.5);
+  padding: 20px;
+  border-radius: 15px;
+  max-width: 90vw;
+}
+#status {
+  margin-top: 20px;
+  font-size: 1.5rem;
+  color: #ffaa00;
+}
+</style>
+</head>
+<body>
+<video id="video" autoplay muted playsinline></video>
+<div id="result">
+  <span id="label">Ожидание камеры...</span>
+  <div id="status"></div>
+</div>
 
-    <!-- Подключаем TensorFlow.js и MobileNet -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
-    
-    <script>
-      const video = document.getElementById('video');
-      const label = document.getElementById('label');
-      const status = document.getElementById('status');
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
 
-      // 1. Включаем камеру (строго задняя)
-      async function startCamera() {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" } }
-          });
-          video.srcObject = stream;
-          status.innerText = "Камера готова. Наведи на гриб.";
-        } catch (error) {
-          console.error('Ошибка доступа к камере:', error);
-          if (error.name === 'NotAllowedError') {
-            status.innerText = "Нужно разрешить доступ к камере в настройках Safari.";
-          } else if (error.name === 'OverconstrainedError') {
-            status.innerText = "Задняя камера не найдена или занята.";
-          } else {
-            status.innerText = "Ошибка камеры. Проверьте консоль.";
-          }
-        }
-      }
+<script>
+const video = document.getElementById('video');
+const label = document.getElementById('label');
+const status = document.getElementById('status');
 
-      // 2. Загружаем модель MobileNet
-      let model;
-      async function loadModel() {
-        status.innerText = "Загрузка нейросети...";
-        model = await mobilenet.load();
-        status.innerText = "Нейросеть готова! Наведи на гриб.";
-      }
+// 1. Включаем камеру (предпочитаем заднюю)
+async function startCamera() {
+  // Проверяем поддержку getUserMedia
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    status.innerText = "Ваш браузер не поддерживает камеру.";
+    return;
+  }
 
-      // 3. Распознавание в реальном времени
-      async function predict() {
-        if (!model) return;
-        try {
-          const predictions = await model.classify(video);
-          
-          // Защита от пустого массива
-          if (!predictions || predictions.length === 0) {
-            requestAnimationFrame(predict);
-            return;
-          }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" } // не exact, чтобы был запасной вариант
+    });
+    video.srcObject = stream;
+    status.innerText = "Камера готова. Наведи на гриб.";
+  } catch (error) {
+    console.error('Ошибка доступа к камере:', error);
+    if (error.name === 'NotAllowedError') {
+      status.innerText = "Нужно разрешить доступ к камере в настройках браузера.";
+    } else if (error.name === 'OverconstrainedError') {
+      status.innerText = "Камера не найдена. Попробуйте другое устройство.";
+    } else {
+      status.innerText = "Ошибка камеры. Проверьте консоль.";
+    }
+  }
+}
 
-          const result = predictions; // Берём самый вероятный вариант
+// 2. Загружаем модель MobileNet
+let model;
+async function loadModel() {
+  try {
+    status.innerText = "Загрузка нейросети...";
+    model = await mobilenet.load();
+    status.innerText = "Нейросеть готова! Наведи на гриб.";
+  } catch (e) {
+    console.error('Ошибка загрузки модели:', e);
+    status.innerText = "Не удалось загрузить нейросеть.";
+  }
+}
 
-          // Простая логика для грибов
-          if (result.className.toLowerCase().includes('mushroom')) {
-            label.innerText = "ГРИБ!";
-            label.style.color = "#0f0";
-            status.innerText = `Уверенность: ${(result.probability * 100).toFixed(1)}%`;
-          } else {
-            label.innerText = result.className;
-            label.style.color = "white";
-            status.innerText = "";
-          }
-          
-          requestAnimationFrame(predict);
-        } catch (e) {
-          console.error('Ошибка классификации:', e);
-          requestAnimationFrame(predict);
-        }
-      }
+// 3. Распознавание в реальном времени
+async function predict() {
+  // Ждём, пока модель загрузится и камера запустится
+  if (!model || !video.srcObject) {
+    requestAnimationFrame(predict);
+    return;
+  }
 
-      // ЗАПУСК: вызываем функции ПОСЛЕ их объявления
-      startCamera();
-      loadModel();
-    </script>
-  </body>
+  try {
+    const predictions = await model.classify(video);
+    if (!predictions || predictions.length === 0) {
+      requestAnimationFrame(predict);
+      return;
+    }
+
+    // Берём первый (самый вероятный) результат
+    const result = predictions[0];
+
+    // Простая логика для грибов
+    if (result.className.toLowerCase().includes('mushroom')) {
+      label.innerText = "ГРИБ!";
+      label.style.color = "#0f0";
+      status.innerText = `Уверенность: ${(result.probability * 100).toFixed(1)}%`;
+    } else {
+      label.innerText = result.className;
+      label.style.color = "white";
+      status.innerText = "";
+    }
+  } catch (e) {
+    console.error('Ошибка классификации:', e);
+  } finally {
+    requestAnimationFrame(predict);
+  }
+}
+
+// ЗАПУСК
+startCamera();
+loadModel();
+predict();
+</script>
+</body>
 </html>
