@@ -1,164 +1,786 @@
+```html
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-<title>Mushroom VR HUD</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<style>
-  html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: black;
-  }
-  #video {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    height: 100dvh; /* адаптация под скрытие адресной строки */
-    object-fit: cover;
-  }
-  #result {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-size: 3rem;
-    font-weight: bold;
-    text-align: center;
-    text-shadow: 2px 2px 0 #000;
-    background: rgba(0,0,0,0.5);
-    padding: 20px;
-    border-radius: 15px;
-    max-width: 90vw;
-  }
-  #status {
-    margin-top: 20px;
-    font-size: 1.5rem;
-    color: #ffaa00;
-  }
-  #fullscreenBtn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 100;
-    padding: 15px 20px;
-    font-size: 2rem;
-    background: rgba(255,255,255,0.8);
-    border: none;
-    border-radius: 50px;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+  >
+
+  <title>Mushroom VR HUD</title>
+
+  <style>
+    :root {
+      --accent: #7cff6a;
+      --warning: #ffb020;
+      --danger: #ff5c5c;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+
+    body {
+      position: relative;
+    }
+
+    /* Камера */
+    #video {
+      position: fixed;
+      inset: 0;
+
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+
+      object-fit: cover;
+      background: #000;
+
+      z-index: 1;
+    }
+
+    /* Затемнение по краям */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+
+      background:
+        radial-gradient(
+          ellipse at center,
+          transparent 45%,
+          rgba(0, 0, 0, 0.25) 100%
+        );
+    }
+
+    /* Центральная рамка */
+    #scanFrame {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+
+      width: min(70vw, 420px);
+      height: min(45vw, 270px);
+
+      transform: translate(-50%, -50%);
+
+      border: 2px solid rgba(124, 255, 106, 0.65);
+      border-radius: 24px;
+
+      z-index: 3;
+      pointer-events: none;
+
+      box-shadow:
+        0 0 20px rgba(124, 255, 106, 0.15),
+        inset 0 0 20px rgba(124, 255, 106, 0.05);
+    }
+
+    /* HUD */
+    #hud {
+      position: fixed;
+      left: 50%;
+      bottom: 30px;
+
+      width: min(92vw, 520px);
+
+      transform: translateX(-50%);
+
+      padding: 18px 20px;
+
+      color: white;
+      text-align: center;
+
+      background: rgba(0, 0, 0, 0.58);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 20px;
+
+      z-index: 10;
+    }
+
+    #label {
+      font-size: clamp(24px, 6vw, 42px);
+      font-weight: 800;
+      line-height: 1.1;
+
+      text-shadow: 0 2px 8px #000;
+
+      transition: color 0.2s ease;
+    }
+
+    #status {
+      margin-top: 8px;
+
+      font-size: clamp(14px, 3.5vw, 18px);
+      color: var(--warning);
+
+      min-height: 22px;
+    }
+
+    #confidence {
+      width: 100%;
+      height: 5px;
+
+      margin-top: 12px;
+
+      overflow: hidden;
+
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+    }
+
+    #confidenceBar {
+      width: 0%;
+      height: 100%;
+
+      background: var(--accent);
+
+      border-radius: inherit;
+
+      transition: width 0.25s ease;
+    }
+
+    /* Кнопка fullscreen */
+    #fullscreenBtn {
+      position: fixed;
+
+      right: max(16px, env(safe-area-inset-right));
+      top: max(16px, env(safe-area-inset-top));
+
+      width: 52px;
+      height: 52px;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      border: 0;
+      border-radius: 50%;
+
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+
+      font-size: 25px;
+
+      cursor: pointer;
+
+      z-index: 20;
+
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    #fullscreenBtn:active {
+      transform: scale(0.92);
+    }
+
+    /* Индикатор камеры */
+    #cameraIndicator {
+      position: fixed;
+
+      left: max(16px, env(safe-area-inset-left));
+      top: max(16px, env(safe-area-inset-top));
+
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      padding: 10px 14px;
+
+      color: white;
+      font-size: 14px;
+
+      background: rgba(0, 0, 0, 0.55);
+      border-radius: 30px;
+
+      z-index: 20;
+    }
+
+    #cameraDot {
+      width: 9px;
+      height: 9px;
+
+      background: var(--danger);
+      border-radius: 50%;
+    }
+
+    #cameraDot.active {
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    @media (max-width: 480px) {
+      #hud {
+        bottom: 20px;
+        padding: 15px;
+      }
+
+      #scanFrame {
+        width: 78vw;
+        height: 48vw;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<video id="video" autoplay muted playsinline></video>
-<button id="fullscreenBtn">⛶</button>
-<div id="result">
-  <span id="label">Ожидание камеры...</span>
-  <div id="status"></div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet"></script>
+  <!-- Камера -->
+  <video
+    id="video"
+    autoplay
+    muted
+    playsinline
+  ></video>
 
-<script>
-const video = document.getElementById('video');
-const label = document.getElementById('label');
-const status = document.getElementById('status');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
+  <!-- Визуальный слой -->
+  <div id="overlay"></div>
 
-// Кнопка полноэкранного режима
-fullscreenBtn.addEventListener('click', async () => {
-  try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-    } else {
-      await document.exitFullscreen();
+  <!-- Область сканирования -->
+  <div id="scanFrame"></div>
+
+  <!-- Статус камеры -->
+  <div id="cameraIndicator">
+    <span id="cameraDot"></span>
+    <span id="cameraText">Камера выключена</span>
+  </div>
+
+  <!-- Fullscreen -->
+  <button
+    id="fullscreenBtn"
+    type="button"
+    aria-label="Полноэкранный режим"
+  >
+    ⛶
+  </button>
+
+  <!-- HUD -->
+  <section id="hud">
+    <div id="label">Запуск...</div>
+
+    <div id="status">
+      Подготовка системы
+    </div>
+
+    <div id="confidence">
+      <div id="confidenceBar"></div>
+    </div>
+  </section>
+
+
+  <!-- TensorFlow -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+
+  <!-- MobileNet -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+
+
+  <script>
+    "use strict";
+
+
+    // =========================================================
+    // ЭЛЕМЕНТЫ
+    // =========================================================
+
+    const video = document.getElementById("video");
+
+    const label = document.getElementById("label");
+    const status = document.getElementById("status");
+
+    const confidenceBar =
+      document.getElementById("confidenceBar");
+
+    const fullscreenBtn =
+      document.getElementById("fullscreenBtn");
+
+    const cameraDot =
+      document.getElementById("cameraDot");
+
+    const cameraText =
+      document.getElementById("cameraText");
+
+
+    // =========================================================
+    // СОСТОЯНИЕ
+    // =========================================================
+
+    let stream = null;
+    let model = null;
+
+    let isPredicting = false;
+    let lastPrediction = 0;
+
+    const PREDICTION_INTERVAL = 600;
+
+
+    // =========================================================
+    // UI
+    // =========================================================
+
+    function setStatus(text) {
+      status.textContent = text;
     }
-  } catch (e) {
-    console.error('Fullscreen failed:', e);
-    // Для iOS Safari: попробуем перевести только видео в fullscreen
-    if (video.webkitEnterFullscreen) {
-      video.webkitEnterFullscreen();
-    }
-  }
-});
 
-// 1. Включаем камеру (предпочитаем заднюю)
-async function startCamera() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    status.innerText = "Ваш браузер не поддерживает камеру.";
-    return;
-  }
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }
-    });
-    video.srcObject = stream;
-    status.innerText = "Камера готова. Наведи на гриб.";
-  } catch (error) {
-    console.error('Ошибка доступа к камере:', error);
-    if (error.name === 'NotAllowedError') {
-      status.innerText = "Нужно разрешить доступ к камере в настройках браузера.";
-    } else {
-      status.innerText = "Ошибка камеры. Проверьте консоль.";
-    }
-  }
-}
-
-// 2. Загружаем модель MobileNet
-let model;
-async function loadModel() {
-  try {
-    status.innerText = "Загрузка нейросети...";
-    model = await mobilenet.load();
-    status.innerText = "Нейросеть готова! Наведи на гриб.";
-  } catch (e) {
-    console.error('Ошибка загрузки модели:', e);
-    status.innerText = "Не удалось загрузить нейросеть.";
-  }
-}
-
-// 3. Распознавание в реальном времени
-async function predict() {
-  if (!model || !video.srcObject) {
-    requestAnimationFrame(predict);
-    return;
-  }
-
-  try {
-    const predictions = await model.classify(video);
-    if (!predictions || predictions.length === 0) {
-      requestAnimationFrame(predict);
-      return;
+    function setLabel(text, color = "#ffffff") {
+      label.textContent = text;
+      label.style.color = color;
     }
 
-    const result = predictions[0];
 
-    if (result.className.toLowerCase().includes('mushroom')) {
-      label.innerText = "ГРИБ!";
-      label.style.color = "#0f0";
-      status.innerText = `Уверенность: ${(result.probability * 100).toFixed(1)}%`;
-    } else {
-      label.innerText = result.className;
-      label.style.color = "white";
-      status.innerText = "";
+    function setConfidence(value) {
+      const percent = Math.max(
+        0,
+        Math.min(100, value * 100)
+      );
+
+      confidenceBar.style.width = `${percent}%`;
     }
-  } catch (e) {
-    console.error('Ошибка классификации:', e);
-  } finally {
-    requestAnimationFrame(predict);
-  }
-}
 
-// Запуск
-startCamera();
-loadModel();
-predict();
-</script>
+
+    function cameraReady() {
+      cameraDot.classList.add("active");
+      cameraText.textContent = "Камера активна";
+    }
+
+
+    function cameraStopped() {
+      cameraDot.classList.remove("active");
+      cameraText.textContent = "Камера выключена";
+    }
+
+
+    // =========================================================
+    // КАМЕРА
+    // =========================================================
+
+    async function startCamera() {
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setLabel("Камера недоступна", "#ff5c5c");
+        setStatus(
+          "Браузер не поддерживает доступ к камере."
+        );
+
+        return false;
+      }
+
+      setLabel("Запуск камеры...");
+      setStatus("Разрешите доступ к камере.");
+
+      try {
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: {
+              ideal: "environment"
+            },
+
+            width: {
+              ideal: 1280
+            },
+
+            height: {
+              ideal: 720
+            }
+          },
+
+          audio: false
+        });
+
+
+        video.srcObject = stream;
+
+        await video.play();
+
+        cameraReady();
+
+        setLabel("Камера готова", "#7cff6a");
+        setStatus("Наведите камеру на объект.");
+
+        return true;
+
+      } catch (error) {
+
+        console.error(
+          "Ошибка камеры:",
+          error
+        );
+
+        cameraStopped();
+
+        if (
+          error.name === "NotAllowedError" ||
+          error.name === "SecurityError"
+        ) {
+
+          setLabel(
+            "Доступ запрещён",
+            "#ff5c5c"
+          );
+
+          setStatus(
+            "Разрешите камеру в настройках браузера."
+          );
+
+        } else if (
+          error.name === "NotFoundError"
+        ) {
+
+          setLabel(
+            "Камера не найдена",
+            "#ff5c5c"
+          );
+
+          setStatus(
+            "Подключите камеру и попробуйте снова."
+          );
+
+        } else {
+
+          setLabel(
+            "Ошибка камеры",
+            "#ff5c5c"
+          );
+
+          setStatus(
+            error.message || "Неизвестная ошибка."
+          );
+        }
+
+        return false;
+      }
+    }
+
+
+    function stopCamera() {
+
+      if (!stream) {
+        return;
+      }
+
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
+
+      stream = null;
+      video.srcObject = null;
+
+      cameraStopped();
+    }
+
+
+    // =========================================================
+    // НЕЙРОСЕТЬ
+    // =========================================================
+
+    async function loadModel() {
+
+      setStatus("Загрузка нейросети...");
+
+      try {
+
+        model = await mobilenet.load({
+          version: 2,
+          alpha: 1.0
+        });
+
+        console.log("MobileNet загружен");
+
+        setStatus(
+          "Нейросеть готова. Наведите камеру на объект."
+        );
+
+        return true;
+
+      } catch (error) {
+
+        console.error(
+          "Ошибка загрузки MobileNet:",
+          error
+        );
+
+        model = null;
+
+        setLabel(
+          "Ошибка нейросети",
+          "#ff5c5c"
+        );
+
+        setStatus(
+          "Не удалось загрузить модель."
+        );
+
+        return false;
+      }
+    }
+
+
+    // =========================================================
+    // ОПРЕДЕЛЕНИЕ ГРИБОВ
+    // =========================================================
+
+    const MUSHROOM_KEYWORDS = [
+      "mushroom",
+      "fungus",
+      "fungi",
+      "agaric",
+      "bolete",
+      "porcini",
+      "morel",
+      "chanterelle",
+      "toadstool"
+    ];
+
+
+    function isMushroom(className) {
+
+      const name =
+        String(className || "").toLowerCase();
+
+      return MUSHROOM_KEYWORDS.some(
+        keyword => name.includes(keyword)
+      );
+    }
+
+
+    // =========================================================
+    // РАСПОЗНАВАНИЕ
+    // =========================================================
+
+    async function predict() {
+
+      if (
+        !model ||
+        !video.srcObject ||
+        video.readyState < 2 ||
+        isPredicting
+      ) {
+        return;
+      }
+
+      const now = performance.now();
+
+      if (
+        now - lastPrediction <
+        PREDICTION_INTERVAL
+      ) {
+        return;
+      }
+
+      lastPrediction = now;
+      isPredicting = true;
+
+      try {
+
+        const predictions =
+          await model.classify(video, 3);
+
+
+        if (
+          !predictions ||
+          predictions.length === 0
+        ) {
+
+          setLabel("Не удалось определить");
+          setStatus("");
+          setConfidence(0);
+
+          return;
+        }
+
+
+        const best = predictions[0];
+
+        const name = best.className;
+        const probability = best.probability;
+
+
+        console.log(
+          predictions
+        );
+
+
+        if (isMushroom(name)) {
+
+          setLabel(
+            "ГРИБ",
+            "#7cff6a"
+          );
+
+          setStatus(
+            `${name} · ${(probability * 100).toFixed(1)}%`
+          );
+
+          setConfidence(
+            probability
+          );
+
+        } else {
+
+          setLabel(
+            name,
+            "#ffffff"
+          );
+
+          setStatus(
+            `Уверенность: ${(probability * 100).toFixed(1)}%`
+          );
+
+          setConfidence(
+            probability
+          );
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Ошибка распознавания:",
+          error
+        );
+
+        setStatus(
+          "Ошибка распознавания."
+        );
+
+      } finally {
+
+        isPredicting = false;
+      }
+    }
+
+
+    // =========================================================
+    // ЦИКЛ
+    // =========================================================
+
+    function predictionLoop() {
+
+      predict();
+
+      requestAnimationFrame(
+        predictionLoop
+      );
+    }
+
+
+    // =========================================================
+    // FULLSCREEN
+    // =========================================================
+
+    async function toggleFullscreen() {
+
+      try {
+
+        if (!document.fullscreenElement) {
+
+          if (
+            document.documentElement.requestFullscreen
+          ) {
+
+            await document.documentElement.requestFullscreen();
+
+          } else if (
+            video.webkitEnterFullscreen
+          ) {
+
+            video.webkitEnterFullscreen();
+          }
+
+        } else {
+
+          await document.exitFullscreen();
+        }
+
+      } catch (error) {
+
+        console.warn(
+          "Fullscreen error:",
+          error
+        );
+      }
+    }
+
+
+    fullscreenBtn.addEventListener(
+      "click",
+      toggleFullscreen
+    );
+
+
+    // =========================================================
+    // ОЧИСТКА
+    // =========================================================
+
+    window.addEventListener(
+      "pagehide",
+      stopCamera
+    );
+
+    window.addEventListener(
+      "beforeunload",
+      stopCamera
+    );
+
+
+    // =========================================================
+    // ЗАПУСК
+    // =========================================================
+
+    async function init() {
+
+      setLabel("Запуск...");
+      setStatus("Инициализация системы.");
+
+      // Камера и модель запускаются параллельно
+      const cameraPromise = startCamera();
+      const modelPromise = loadModel();
+
+      await Promise.all([
+        cameraPromise,
+        modelPromise
+      ]);
+
+      if (stream && model) {
+
+        setLabel(
+          "Готово",
+          "#7cff6a"
+        );
+
+        setStatus(
+          "Наведите камеру на гриб."
+        );
+      }
+
+      predictionLoop();
+    }
+
+
+    init();
+
+  </script>
+
 </body>
 </html>
+```
+
+**Но есть важный момент:** даже этот код **не сможет надёжно определить съедобный/ядовитый гриб**. MobileNet обучен на ImageNet и не является специализированной моделью для определения видов грибов. Он может показать `mushroom`, `bolete` и т. п., но для реального распознавания вида нужна специализированная модель, например YOLO/Teachable Machine или модель, обученная на датасете грибов.
+
+Если хочешь именно **рабочий Mushroom Scanner**, я могу переделать этот код под **YOLO с обнаружением гриба на изображении + рамкой вокруг гриба + названием вида + процентом уверенности**.
